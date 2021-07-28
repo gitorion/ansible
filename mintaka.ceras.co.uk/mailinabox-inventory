@@ -1,1 +1,1 @@
-mintaka ansible_host=185.132.43.28 ansible_user=root
+mintaka ansible_host=ip_address_here ansible_user=root

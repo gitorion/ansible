@@ -3,5 +3,5 @@ create_user: m
 copy_local_key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/id_rsa.pub') }}"
 sys_packages: [ 'software-properties-common', 'acl', 'curl', 'wget', 'vim', 'git', 'teleport']
 new_hostname: mintaka.ceras.co.uk
-password: $6$2x2IXm9OjwAge$kQ0qQ0CUsSlBV6jPkaOxH05vLgtCms6nwi76.68flLWEhgOxPYxKSXyXBsn9axKxoJJK7VofgDopKC1fXo7zM/
-#ansible_ssh_private_key_file: ~/.ssh/LightsailDefaultKey-us-east-1
+password: "hashed password here"
+#ansible_ssh_private_key_file: ~/.ssh/LightsailDefaultKey-us-east-1  #if using a lightsail instance
