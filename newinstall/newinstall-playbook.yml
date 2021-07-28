@@ -1,0 +1,308 @@
+---
+- hosts: all
+  become: true
+  vars_files:
+    - vars/default.yml
+  tasks:
+
+  # Update system packages
+
+    - name: Update system packages
+      apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 3600
+        state: latest
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
+
+    - name: Update system packages
+      dnf:
+        name: "*"
+        update_cache: yes
+        state: latest
+        skip_broken: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+
+  # Install specified packages
+ 
+    - name: Add EPEL repository in DNF
+      dnf:
+        name: epel-release
+        state: present
+        skip_broken: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+
+    - name: Install software-properties-common
+      apt:
+        name: software-properties-common
+        state: latest
+        update_cache: true
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
+
+    - name: Download teleport public key
+      ansible.builtin.apt_key:
+        url: https://deb.releases.teleport.dev/teleport-pubkey.asc
+        state: present
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
+
+    - name: Add teleport repo to apt      
+      ansible.builtin.apt_repository:
+        repo: deb https://deb.releases.teleport.dev/ stable main
+        state: present
+        install_python_apt: yes
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
+
+    - name: Add teleport repo to dnf
+      command: sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'           
+
+    - name: Installing required system packages APT
+      apt:
+        name: "{{ sys_packages }}"
+        state: latest
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
+
+    - name: Installing required system packages DNF
+      dnf:
+        name: "{{ sys_packages }}"
+        state: latest
+        skip_broken: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+
+  # UFW Setup
+  
+    - name: Reset ufw
+      community.general.ufw:
+        state: reset
+
+    - name: Set ufw ssh port to limit
+      community.general.ufw:
+        rule: limit
+        port: ssh
+        proto: tcp
+        comment: allow ssh with limit
+
+    - name: Enable ufw
+      community.general.ufw:
+        state: enabled
+        logging: on
+
+    - name: Allowing selected ufw tcp incoming
+      community.general.ufw:
+        rule: allow
+        proto: tcp
+        direction: in
+        port: '{{ item }}'
+      loop:
+        - http
+        - https
+        - svn
+        - git
+
+    - name: Allowing selected ufw tcp outgoing
+      community.general.ufw:
+        rule: allow
+        proto: tcp
+        direction: out
+        port: '{{ item }}'
+      loop:
+        - http
+        - https
+        - 53
+
+    - name: Allowing selected ufw udp outgoing
+      community.general.ufw:
+        rule: allow
+        proto: udp
+        direction: out
+        port: '{{ item }}'
+      loop:
+        - 53        
+
+    - name: Set ufw incoming policy
+      community.general.ufw:
+        default: deny
+        direction: incoming
+
+    - name: Set ufw outgoing policy
+      community.general.ufw:
+        default: deny
+        direction: outgoing
+
+    - name: Enable ufw to run from start-up
+      ansible.builtin.command: sudo systemctl enable ufw
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+
+  # Set specified hostname
+
+    - name: Set required hostname from specified
+      command: "sudo {{ item }}"
+      with_items:
+        - hostnamectl set-hostname "{{ new_hostname }}"
+        - hostnamectl set-hostname """{{ new_hostname }}""" --pretty
+        - hostnamectl set-hostname "{{ new_hostname }}" --static
+        - hostnamectl set-hostname "{{ new_hostname }}" --transient
+
+    - name: Replace localhost entry to include specified hostname
+      lineinfile:
+        path: /etc/hosts
+        search_string: '127.0.1.1'
+        line: 127.0.1.1 {{ new_hostname }}
+        owner: root
+        group: root
+        mode: '0644'
+
+  # Sudo group create
+
+    - name: Make a sudo group if it is not already present 
+      ansible.builtin.group:
+        name: sudo
+        state: present
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+
+    - name: Make an entry in sudoers file for the sudo group
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers
+        state: present
+        line: '%sudo	ALL=(ALL)	ALL'
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+
+  # New user prerequisites
+
+    - name: Remove login banner in skel for new users
+      command: sudo touch /etc/skel/.hushlogin
+
+    - name: Check profile file exists
+      stat:
+        path: /etc/skel/.profile
+      register: stat_result
+
+    - name: Create profile file in skel for new users
+      file:
+        path: /etc/skel/.profile
+        state: touch
+      when: (not stat_result.stat.exists and ansible_distribution == 'Debian') or
+            (not stat_result.stat.exists and ansible_distribution == 'Ubuntu') or
+            (not stat_result.stat.exists and ansible_distribution == 'Linux Mint')
+
+    - name: Add mystart script entry to skel profile for new users
+      ansible.builtin.lineinfile:
+        path: /etc/skel/.profile
+        state: present
+        line: 'source /opt/scripts/my_start/mystart.sh'
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
+
+    - name: Check zlogin file exists
+      stat:
+        path: /etc/skel/.zlogin
+      register: stat_result
+ 
+    - name: Create zlogin file in skel for new users
+      file:
+        path: /etc/skel/.zlogin
+        state: touch
+      when: not stat_result.stat.exists
+
+    - name: Add mystart script entry to skel zlogin for new users
+      ansible.builtin.lineinfile:
+        path: /etc/skel/.zlogin
+        state: present
+        line: 'source /opt/scripts/my_start/mystart.sh'
+
+    - name: Add mystart script entry to skel bashrc for new users
+      ansible.builtin.lineinfile:
+        path: /etc/skel/.bashrc
+        state: present
+        line: 'source /opt/scripts/my_start/mystart.sh'
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+
+  # New user(s) and ssh key setup
+
+    - name: Create new user(s) with the specified names and grant sudo privileges if specified
+      ansible.builtin.user:
+        name: "{{ create_user }}"
+        password: "{{ password }}"
+        state: present
+        groups: sudo
+        append: yes
+        create_home: true
+        shell: /bin/bash
+
+    - name: Input an ssh authorized key for the new user(s)
+      authorized_key:
+        user: "{{ create_user }}"
+        state: present
+        key: "{{ copy_local_key }}"
+
+  # Start script set-up
+
+    - name: Create a new directory for scripts
+      ansible.builtin.file:
+        path: /opt/scripts/
+        state: directory
+        mode: u=rwx,g=rwx,o=rx
+
+    - name: Copy the mystart script files to specified remote machine(s)
+      ansible.builtin.copy:
+        src: ~/scripts/my_start/{{item}}
+        dest: /opt/scripts/my_start/
+        owner: orion
+        group: orion
+        mode: u=rwx,g=rwx,o=rx
+      with_items:
+        ['mystart.sh','variables.sh']
+
+  # System reboot
+
+    - name: Rebooting the system to complete updates
+      reboot:
+
+  # System security measures
+
+    - name: Disable root login shell
+      ansible.builtin.lineinfile:
+        path: /etc/passwd
+        state: present
+        regexp: '^#?root:x:0:0:root:/root:'
+        line: 'root:x:0:0:root:/root:/sbin/nologin'
+
+    - name: Disable ssh root login
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        state: present
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+
+    - name: Disable ssh password authentication
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        state: present
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+
+    - name: Disable ssh login banner
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/sshd
+        state: present
+        regexp: '^#?session    optional     pam_motd.so  motd=/run/motd.dynamic'
+        line: '#session    optional     pam_motd.so  motd=/run/motd.dynamic'
+
+    - name: Diable ssh login banner update task
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/sshd
+        state: present
+        regexp: '^#?session    optional     pam_motd.so noupdate'
+        line: '#session    optional     pam_motd.so noupdate'
+
+    - name: Change banner permissions to prevent change
+      ansible.builtin.file:
+        path: /etc/update-motd.d/
+        state: directory
+        owner: root
+        group: root
+        mode: '0600'
+
+  # Restart the sshd service to enable changes
+
+    - name: Restart the sshd service
+      command: sudo systemctl restart sshd

@@ -1,0 +1,7 @@
+---
+create_user: orion
+copy_local_key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/id_rsa.pub') }}"
+sys_packages: [ 'acl', 'curl', 'wget', 'vim', 'ufw', 'zsh', 'git', 'teleport']
+new_hostname: io
+password: $6$27iXpjhgS$tdLteaPatP7dRXwGsZCWbFxgf18IbyDbNdaiT.QLnMlPAqPPUffiW2IbzStPTKWtws46JyNq/jiyCo.zOYSx4.
+#ansible_ssh_private_key_file: ~/.ssh/LightsailDefaultKey-eu-west-1

@@ -1,0 +1,34 @@
+---
+- hosts: all
+  become: true
+  tasks:
+    - name: Install software-properties-common
+      package:
+        name: software-properties-common
+        state: latest
+        update_cache: true
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+    - name: Download teleport public key
+      get_url:
+        url: https://deb.releases.teleport.dev/teleport-pubkey.asc
+        dest: /tmp/teleport-pubkey.asc
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+    - name: Add apt-key
+      command: sudo apt-key add /tmp/teleport-pubkey.asc
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+    - name: Add teleport repo to apt      
+      command: sudo add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+    - name: Add teleport repo to dnf
+      command: sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+     
+    - name: Install teleport package
+      package:
+        name: teleport
+        state: latest
+        update_cache: true

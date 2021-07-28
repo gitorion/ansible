@@ -1,0 +1,38 @@
+---
+- hosts: all
+  become: true
+  tasks:
+    
+- name: Install apt prerequisites for Docker on Ubuntu
+      apt:
+        name: {{ item }}
+        with_items:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: latest
+        update_cache: true
+      when: ansible_distribution == 'Ubuntu'
+
+- name: Add Docker’s official GPG key
+  ansible.builtin.apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    keyring: /usr/share/keyrings/docker-archive-keyring.gpg
+  when: ansible_distribution == 'Ubuntu'  
+
+
+- name: Add Docker’s official GPG key
+  ansible.builtin.apt_repository:
+    filename: /usr/share/keyrings/docker-archive-keyring.gpg
+    repo: deb-src http://archive.canonical.com/ubuntu hardy partner
+    state: present
+
+
+         
+    - name: Install docker package
+      package:
+        name: docker
+        state: latest
+        update_cache: true

@@ -1,0 +1,11 @@
+[wireguard]
+bellatrix ansible_host=50.21.190.42 ansible_user=orion
+
+[webserver]
+rigel ansible_host=23.95.173.18 ansible_user=orion
+
+[development]
+vega ansible_host=72.44.78.114 ansible_user=orion
+
+[jitsi]
+titan ansible_host=77.101.223.88 ansible_user=orion
