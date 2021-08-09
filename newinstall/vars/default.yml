@@ -1,7 +1,10 @@
 ---
-create_user: "insert username"
-copy_local_key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/id_rsa.pub') }}"
-sys_packages: [ 'acl', 'curl', 'wget', 'vim', 'ufw', 'zsh', 'git', 'teleport']
-new_hostname: "insert hostname"
-password: "insert hashed password"
-#ansible_ssh_private_key_file: ~/.ssh/LightsailDefaultKey-eu-west-1 #if using lightsail instance
+create_user: <xxx>
+copy_local_key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/strongest.pub') }}"
+sys_packages: ['software-properties-common', 'acl', 'curl', 'wget', 'vim', 'ufw', 'zsh', 'git', 'teleport', 'wireguard', 'rsync']
+sys_dnf_packages: ['acl', 'curl', 'wget', 'vim', 'ufw', 'zsh', 'git', 'teleport', 'rsync', 'kmod-wireguard', 'wireguard-tools']
+hostname: <xxx>
+password: "{{ lookup('env', 'ORION_PASS') }}"
+ip: <xxx>
+#ansible_ssh_private_key_file: ~/.ssh/lightsail              #if using a lightsail instance
+ansible_ssh_private_key_file: ~/.ssh/id_rsa                  #if using rsa key 

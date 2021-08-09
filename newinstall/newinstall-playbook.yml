@@ -1,14 +1,51 @@
 ---
-- hosts: all
+- name: newinstall playbook
+  hosts: newinstall
   become: true
   vars_files:
-    - vars/default.yml
+    - vars/default.yml  
   tasks:
+
+  # Check if distro is supported
+
+    - name: End the play for hosts that are not supported
+      fail:
+        msg: Sorry this distribution {{ ansible_distribution }} is currently not supported for running this playbook.
+      when: ansible_distribution != 'Debian' and ansible_distribution != 'CentOS' and ansible_distribution != 'Ubuntu' and ansible_distribution != 'Red Hat Enterprise Linux' and ansible_distribution != 'AlmaLinux' and ansible_distribution != 'Fedora' and ansible_distribution != 'RedHat' and ansible_distribution != 'Linux Mint'
+
+  # Upgrade older system packages
+
+    - name: apt upgrade for older distributions
+      ansible.builtin.apt:
+        state: latest
+        name: "{{ item }}"
+      with_items:
+        - python3
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
+  
+    - name: dnf upgrade for older distributions
+      ansible.builtin.yum:
+        state: latest
+        name: "{{ item }}"
+      with_items:
+        - dnf
+        - dnf-plugins-core
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+
+  # Local machine configure
+
+    - name: Add entry to local machine hosts file
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        state: present
+        search_string: '{{ hostname }}'
+        line: '{{ ip }}   {{ hostname }}'
+      delegate_to: localhost
 
   # Update system packages
 
     - name: Update system packages
-      apt:
+      ansible.builtin.apt:
         upgrade: yes
         update_cache: yes
         cache_valid_time: 3600
@@ -16,7 +53,7 @@
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
 
     - name: Update system packages
-      dnf:
+      ansible.builtin.dnf:
         name: "*"
         update_cache: yes
         state: latest
@@ -25,19 +62,18 @@
 
   # Install specified packages
  
-    - name: Add EPEL repository in DNF
-      dnf:
-        name: epel-release
-        state: present
-        skip_broken: yes
-      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
-
-    - name: Install software-properties-common
-      apt:
-        name: software-properties-common
+    - name: Add specified repositories in dnf
+      ansible.builtin.dnf:
+        name: epel-release,elrepo-release
         state: latest
-        update_cache: true
-      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
+        skip_broken: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux' or ansible_distribution == 'Fedora'
+
+    - name: Check GnuPG is installed
+      ansible.builtin.apt:
+        name: gnupg2
+        state: latest
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Linux Mint' or ansible_distribution == 'Ubuntu'
 
     - name: Download teleport public key
       ansible.builtin.apt_key:
@@ -45,26 +81,32 @@
         state: present
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
 
-    - name: Add teleport repo to apt      
+    - name: Add specified repositories in apt      
       ansible.builtin.apt_repository:
         repo: deb https://deb.releases.teleport.dev/ stable main
         state: present
         install_python_apt: yes
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
 
+    - name: Add specified repositories in apt      
+      ansible.builtin.apt_repository:
+        repo: deb http://deb.debian.org/debian buster-backports main contrib non-free
+        state: present
+      when: ansible_distribution == 'Debian'
+
     - name: Add teleport repo to dnf
-      command: sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+      ansible.builtin.command: dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'           
 
-    - name: Installing required system packages APT
-      apt:
+    - name: Installing required system packages apt
+      ansible.builtin.apt:
         name: "{{ sys_packages }}"
         state: latest
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
 
-    - name: Installing required system packages DNF
-      dnf:
-        name: "{{ sys_packages }}"
+    - name: Installing required system packages dnf
+      ansible.builtin.dnf:
+        name: "{{ sys_dnf_packages }}"
         state: latest
         skip_broken: yes
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
@@ -81,6 +123,7 @@
         port: ssh
         proto: tcp
         comment: allow ssh with limit
+      no_log: true
 
     - name: Enable ufw
       community.general.ufw:
@@ -98,6 +141,17 @@
         - https
         - svn
         - git
+      no_log: true
+
+  #  - name: Allowing selected ufw udp incoming
+  #    community.general.ufw:
+  #      rule: allow
+  #      proto: udp
+  #      direction: in
+  #      port: '{{ item }}'
+  #    loop:
+  #      - 
+  #    no_log: true
 
     - name: Allowing selected ufw tcp outgoing
       community.general.ufw:
@@ -108,8 +162,10 @@
       loop:
         - http
         - https
+        - 22
         - 53
-
+      no_log: true
+      
     - name: Allowing selected ufw udp outgoing
       community.general.ufw:
         rule: allow
@@ -117,8 +173,9 @@
         direction: out
         port: '{{ item }}'
       loop:
-        - 53        
-
+        - 53
+      no_log: true
+           
     - name: Set ufw incoming policy
       community.general.ufw:
         default: deny
@@ -136,18 +193,18 @@
   # Set specified hostname
 
     - name: Set required hostname from specified
-      command: "sudo {{ item }}"
+      ansible.builtin.command: "{{ item }}"
       with_items:
-        - hostnamectl set-hostname "{{ new_hostname }}"
-        - hostnamectl set-hostname """{{ new_hostname }}""" --pretty
-        - hostnamectl set-hostname "{{ new_hostname }}" --static
-        - hostnamectl set-hostname "{{ new_hostname }}" --transient
+        - hostnamectl set-hostname "{{ hostname }}"
+        - hostnamectl set-hostname """{{ hostname }}""" --pretty
+        - hostnamectl set-hostname "{{ hostname }}" --static
+        - hostnamectl set-hostname "{{ hostname }}" --transient
 
     - name: Replace localhost entry to include specified hostname
-      lineinfile:
+      ansible.builtin.lineinfile:
         path: /etc/hosts
         search_string: '127.0.1.1'
-        line: 127.0.1.1 {{ new_hostname }}
+        line: '127.0.1.1 {{ hostname }}'
         owner: root
         group: root
         mode: '0644'
@@ -170,7 +227,7 @@
   # New user prerequisites
 
     - name: Remove login banner in skel for new users
-      command: sudo touch /etc/skel/.hushlogin
+      ansible.builtin.command: touch /etc/skel/.hushlogin
 
     - name: Check profile file exists
       stat:
@@ -178,7 +235,7 @@
       register: stat_result
 
     - name: Create profile file in skel for new users
-      file:
+      ansible.builtin.file:
         path: /etc/skel/.profile
         state: touch
       when: (not stat_result.stat.exists and ansible_distribution == 'Debian') or
@@ -198,7 +255,7 @@
       register: stat_result
  
     - name: Create zlogin file in skel for new users
-      file:
+      ansible.builtin.file:
         path: /etc/skel/.zlogin
         state: touch
       when: not stat_result.stat.exists
@@ -218,7 +275,7 @@
 
   # New user(s) and ssh key setup
 
-    - name: Create new user(s) with the specified names and grant sudo privileges if specified
+    - name: Create new user(s) with the specified name(s) and grant sudo privileges if specified
       ansible.builtin.user:
         name: "{{ create_user }}"
         password: "{{ password }}"
@@ -228,29 +285,89 @@
         create_home: true
         shell: /bin/bash
 
-    - name: Input an ssh authorized key for the new user(s)
-      authorized_key:
+    - name: Input ssh authorized key(s) for the new user(s)
+      ansible.posix.authorized_key:
         user: "{{ create_user }}"
         state: present
-        key: "{{ copy_local_key }}"
+        key: '{{ item }}'
+      with_items:
+        - "{{ copy_local_key }}"
+      no_log: true
+
+  # Wireguard vpn set up
+
+    - name: Create/check directory for Wireguard
+      ansible.builtin.file:
+        path: /etc/wireguard
+        owner: root
+        group: sudo
+        state: directory
+        mode: 0770        
+
+    - name: Clone wireguard repo from git
+      ansible.builtin.git:
+        repo: https://github.com/gitorion/wireguard.git
+        dest: /etc/wireguard/
+        clone: yes
+        version: main
+
+    - name: Wireguard key-generate
+      ansible.builtin.shell: wg genkey | sudo tee /etc/wireguard/privatekey | wg pubkey | sudo tee /etc/wireguard/publickey
+
+    - name: Wireguard config file key-collect
+      ansible.builtin.shell: cat /etc/wireguard/privatekey
+      register: private_key
+      no_log: true
+
+    - name: Wireguard config file create
+      ansible.builtin.lineinfile:
+        path: /etc/wireguard/client.conf
+        state: present
+        regexp: '^#?PrivateKey = <clients private key here>'
+        line: 'PrivateKey = {{ private_key.stdout }}'
+      no_log: true  
+
+    - name: Set ownership/permissions of wireguard keys for security
+      ansible.builtin.file:
+        path: /etc/wireguard/privatekey
+        owner: root
+        group: sudo
+        state: file
+        mode: 0600
+
+    - name: Set ownership/permissions of wireguard keys for security
+      ansible.builtin.file:
+        path: /etc/wireguard/publickey
+        owner: root
+        group: sudo
+        state: file
+        mode: 0644
+
+    - name: Set ownership/permissions of wireguard config file for security
+      ansible.builtin.file:
+        path: /etc/wireguard/client.conf
+        owner: root
+        group: sudo
+        state: file
+        mode: 0660
 
   # Start script set-up
 
-    - name: Create a new directory for scripts
-      ansible.builtin.file:
-        path: /opt/scripts/
-        state: directory
-        mode: u=rwx,g=rwx,o=rx
-
-    - name: Copy the mystart script files to specified remote machine(s)
-      ansible.builtin.copy:
-        src: ~/scripts/my_start/{{item}}
+    - name: Clone my_start script from git
+      ansible.builtin.git:
+        repo: https://github.com/gitorion/my_start.git
         dest: /opt/scripts/my_start/
-        owner: orion
-        group: orion
+        clone: yes
+        version: main
+
+    - name: Set ownership of cloned my_start script files
+      ansible.builtin.file:
+        path: /opt/scripts/my_start/
+        owner: root
+        group: sudo
+        state: directory
+        recurse: yes
         mode: u=rwx,g=rwx,o=rx
-      with_items:
-        ['mystart.sh','variables.sh']
 
   # System reboot
 
@@ -305,4 +422,4 @@
   # Restart the sshd service to enable changes
 
     - name: Restart the sshd service
-      command: sudo systemctl restart sshd
+      ansible.builtin.command: systemctl restart sshd

@@ -8,9 +8,9 @@
   # Version check for mailinabox
 
     - name: End the play for hosts that are not Ubuntu version 18.04
-      meta: end_host
-      when:
-      - ansible_distribution != 'Ubuntu' and ansible_distribution_version == '18.04'
+      fail:
+        msg: Sorry this distribution {{ ansible_distribution }} is currently not supported for running this playbook.  Mailinabox is currently only compatible with Ubuntu 18.04 ONLY.
+      when: ansible_distribution != 'Ubuntu' and ansible_distribution_version == '18.04'
       
   # Update system packages
 
@@ -61,7 +61,7 @@
   # New user prerequisites
 
     - name: Remove login banner in skel for new users
-      command: sudo touch /etc/skel/.hushlogin
+      ansible.builtin.command: touch /etc/skel/.hushlogin
 
     - name: Check profile file exists
       stat:
@@ -69,15 +69,19 @@
       register: stat_result
 
     - name: Create profile file in skel for new users
-      file:
+      ansible.builtin.file:
         path: /etc/skel/.profile
         state: touch
+      when: (not stat_result.stat.exists and ansible_distribution == 'Debian') or
+            (not stat_result.stat.exists and ansible_distribution == 'Ubuntu') or
+            (not stat_result.stat.exists and ansible_distribution == 'Linux Mint')
 
     - name: Add mystart script entry to skel profile for new users
       ansible.builtin.lineinfile:
         path: /etc/skel/.profile
         state: present
         line: 'source /opt/scripts/my_start/mystart.sh'
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
 
     - name: Check zlogin file exists
       stat:
@@ -85,7 +89,7 @@
       register: stat_result
  
     - name: Create zlogin file in skel for new users
-      file:
+      ansible.builtin.file:
         path: /etc/skel/.zlogin
         state: touch
       when: not stat_result.stat.exists
@@ -96,9 +100,16 @@
         state: present
         line: 'source /opt/scripts/my_start/mystart.sh'
 
+    - name: Add mystart script entry to skel bashrc for new users
+      ansible.builtin.lineinfile:
+        path: /etc/skel/.bashrc
+        state: present
+        line: 'source /opt/scripts/my_start/mystart.sh'
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+
   # New user(s) and ssh key setup
 
-    - name: Create new user(s) with the specified names and grant sudo privileges if specified
+    - name: Create new user(s) with the specified name(s) and grant sudo privileges if specified
       ansible.builtin.user:
         name: "{{ create_user }}"
         password: "{{ password }}"
@@ -108,29 +119,32 @@
         create_home: true
         shell: /bin/bash
 
-    - name: Input an ssh authorized key for the new user(s)
-      authorized_key:
+    - name: Input ssh authorized key(s) for the new user(s)
+      ansible.posix.authorized_key:
         user: "{{ create_user }}"
         state: present
-        key: "{{ copy_local_key }}"
+        key: '{{ item }}'
+      with_items:
+        - "{{ copy_local_key }}"
+      no_log: true
 
   # Start script set-up
 
-    - name: Create a new directory for scripts
-      ansible.builtin.file:
-        path: /opt/scripts/
-        state: directory
-        mode: u=rwx,g=rwx,o=rx
-
-    - name: Copy the mystart script files to specified remote machine(s)
-      ansible.builtin.copy:
-        src: ~/scripts/my_start/{{item}}
+    - name: Clone my_start script from git
+      ansible.builtin.git:
+        repo: https://github.com/gitorion/my_start.git
         dest: /opt/scripts/my_start/
-        owner: "{{ create_user }}"
-        group: "{{ create_user }}"
+        clone: yes
+        version: main
+
+    - name: Set ownership of cloned my_start script files
+      ansible.builtin.file:
+        path: /opt/scripts/my_start/
+        owner: root
+        group: sudo
+        state: directory
+        recurse: yes
         mode: u=rwx,g=rwx,o=rx
-      with_items:
-        ['mystart.sh','variables.sh']
 
   # System reboot
 
