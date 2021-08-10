@@ -67,7 +67,7 @@
         name: epel-release,elrepo-release
         state: latest
         skip_broken: yes
-      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux' or ansible_distribution == 'Fedora'
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
 
     - name: Check GnuPG is installed
       ansible.builtin.apt:
@@ -109,7 +109,14 @@
         name: "{{ sys_dnf_packages }}"
         state: latest
         skip_broken: yes
-      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+
+    - name: Installing required system packages dnf
+      ansible.builtin.dnf:
+        name: "{{ sys_fedora_dnf_packages }}"
+        state: latest
+        skip_broken: yes
+      when: ansible_distribution == 'Fedora'
 
   # UFW Setup
   
@@ -150,7 +157,7 @@
   #      direction: in
   #      port: '{{ item }}'
   #    loop:
-  #      - 
+  #      -
   #    no_log: true
 
     - name: Allowing selected ufw tcp outgoing
@@ -302,8 +309,8 @@
         owner: root
         group: sudo
         state: directory
-        mode: 0770        
-
+        mode: 0770
+           
     - name: Clone wireguard repo from git
       ansible.builtin.git:
         repo: https://github.com/gitorion/wireguard.git

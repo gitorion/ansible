@@ -1,1 +1,1 @@
-newinstall ansible_host=<xxx> ansible_user=root
+newinstall ansible_host=xxx ansible_user=xxx
