@@ -1,0 +1,86 @@
+---
+- name: ufw playbook
+  hosts: "{{ hostname }}"
+  become: true
+  vars_files:
+    - vars/default.yml  
+  tasks:
+
+    # UFW Setup
+  
+    - name: Reset ufw
+      community.general.ufw:
+        state: reset
+
+    - name: Set ufw ssh port to limit
+      community.general.ufw:
+        rule: limit
+        port: ssh
+        proto: tcp
+        comment: allow ssh with limit
+      no_log: true
+
+    - name: Enable ufw
+      community.general.ufw:
+        state: enabled
+        logging: on
+
+    - name: Allowing selected ufw tcp incoming
+      community.general.ufw:
+        rule: allow
+        proto: tcp
+        direction: in
+        port: '{{ item }}'
+      loop:
+        - http
+        - https
+        - svn
+        - git
+      no_log: true
+
+  #  - name: Allowing selected ufw udp incoming
+  #    community.general.ufw:
+  #      rule: allow
+  #      proto: udp
+  #      direction: in
+  #      port: '{{ item }}'
+  #    loop:
+  #      -
+  #    no_log: true
+
+    - name: Allowing selected ufw tcp outgoing
+      community.general.ufw:
+        rule: allow
+        proto: tcp
+        direction: out
+        port: '{{ item }}'
+      loop:
+        - http
+        - https
+        - 22
+        - 53
+      no_log: true
+      
+    - name: Allowing selected ufw udp outgoing
+      community.general.ufw:
+        rule: allow
+        proto: udp
+        direction: out
+        port: '{{ item }}'
+      loop:
+        - 53
+      no_log: true
+           
+    - name: Set ufw incoming policy
+      community.general.ufw:
+        default: deny
+        direction: incoming
+
+    - name: Set ufw outgoing policy
+      community.general.ufw:
+        default: deny
+        direction: outgoing
+
+    - name: Enable ufw to run from start-up
+      ansible.builtin.command: sudo systemctl enable ufw
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'

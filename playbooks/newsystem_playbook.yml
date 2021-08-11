@@ -1,0 +1,118 @@
+---
+- name: new system playbook
+  hosts: "{{ hostname }}"
+  become: true
+  vars_files:
+    - vars/default.yml  
+  tasks:
+  
+  # Local machine configure
+
+    - name: Add entry to local machine hosts file
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        state: present
+        search_string: '{{ hostname }}'
+        line: '{{ ip }}   {{ hostname }}'
+      delegate_to: localhost
+
+  # Set specified hostname
+
+    - name: Set required hostname from specified
+      ansible.builtin.command: "{{ item }}"
+      with_items:
+        - hostnamectl set-hostname "{{ hostname }}"
+        - hostnamectl set-hostname """{{ hostname }}""" --pretty
+        - hostnamectl set-hostname "{{ hostname }}" --static
+        - hostnamectl set-hostname "{{ hostname }}" --transient
+
+    - name: Replace localhost entry to include specified hostname
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        search_string: '127.0.1.1'
+        line: '127.0.1.1 {{ hostname }}'
+        owner: root
+        group: root
+        mode: '0644'
+
+  # Sudo group create
+
+    - name: Make a sudo group if it is not already present 
+      ansible.builtin.group:
+        name: sudo
+        state: present
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+
+    - name: Make an entry in sudoers file for the sudo group
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers
+        state: present
+        line: '%sudo	ALL=(ALL)	ALL'
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+
+  # New user prerequisites
+
+    - name: Remove login banner in skel for new users
+      ansible.builtin.command: touch /etc/skel/.hushlogin
+
+    - name: Check profile file exists
+      stat:
+        path: /etc/skel/.profile
+      register: stat_result
+
+    - name: Create profile file in skel for new users
+      ansible.builtin.file:
+        path: /etc/skel/.profile
+        state: touch
+      when: (not stat_result.stat.exists and ansible_distribution == 'Debian') or
+            (not stat_result.stat.exists and ansible_distribution == 'Ubuntu') or
+            (not stat_result.stat.exists and ansible_distribution == 'Linux Mint')
+
+    - name: Add mystart script entry to skel profile for new users
+      ansible.builtin.lineinfile:
+        path: /etc/skel/.profile
+        state: present
+        line: 'source /opt/scripts/my_start/mystart.sh'
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
+
+    - name: Check zlogin file exists
+      stat:
+        path: /etc/skel/.zlogin
+      register: stat_result
+ 
+    - name: Create zlogin file in skel for new users
+      ansible.builtin.file:
+        path: /etc/skel/.zlogin
+        state: touch
+      when: not stat_result.stat.exists
+
+    - name: Add mystart script entry to skel zlogin for new users
+      ansible.builtin.lineinfile:
+        path: /etc/skel/.zlogin
+        state: present
+        line: 'source /opt/scripts/my_start/mystart.sh'
+
+    - name: Add mystart script entry to skel bashrc for new users
+      ansible.builtin.lineinfile:
+        path: /etc/skel/.bashrc
+        state: present
+        line: 'source /opt/scripts/my_start/mystart.sh'
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
+
+  # Start script set-up
+
+    - name: Clone my_start script from git
+      ansible.builtin.git:
+        repo: https://github.com/gitorion/my_start.git
+        dest: /opt/scripts/my_start/
+        clone: yes
+        version: main
+
+    - name: Set ownership of cloned my_start script files
+      ansible.builtin.file:
+        path: /opt/scripts/my_start/
+        owner: root
+        group: sudo
+        state: directory
+        recurse: yes
+        mode: u=rwx,g=rwx,o=rx

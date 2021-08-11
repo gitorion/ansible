@@ -1,0 +1,26 @@
+---
+- name: first run playbook
+  hosts: "{{ hostname }}"
+  become: true
+  vars_files:
+    - vars/default.yml  
+  tasks:
+
+  # Check if distro is supported
+
+    - name: End the play for hosts that are not supported
+      fail:
+        msg: Sorry this distribution {{ ansible_distribution }} is currently not supported for running this playbook.
+      when: ansible_distribution != 'Debian' and ansible_distribution != 'CentOS' and ansible_distribution != 'Ubuntu' and ansible_distribution != 'Red Hat Enterprise Linux' and ansible_distribution != 'AlmaLinux' and ansible_distribution != 'Fedora' and ansible_distribution != 'RedHat' and ansible_distribution != 'Linux Mint'
+
+- import_playbook: update_playbook.yml
+
+- import_playbook: newsystem_playbook.yml
+
+- import_playbook: wireguard_playbook.yml
+
+- import_playbook: ufw_playbook.yml
+
+- import_playbook: newuser_playbook.yml
+
+- import_playbook: security_playbook.yml    

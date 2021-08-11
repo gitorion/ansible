@@ -1,0 +1,64 @@
+---
+- name: wireguard playbook
+  hosts: "{{ hostname }}"
+  become: true
+  vars_files:
+    - vars/default.yml  
+  tasks:
+
+  # Wireguard vpn set up
+
+    - name: Create/check directory for Wireguard
+      ansible.builtin.file:
+        path: /etc/wireguard
+        owner: root
+        group: sudo
+        state: directory
+        mode: 0770
+           
+    - name: Clone wireguard repo from git
+      ansible.builtin.git:
+        repo: https://github.com/gitorion/wireguard.git
+        dest: /etc/wireguard/
+        clone: yes
+        version: main
+
+    - name: Wireguard key-generate
+      ansible.builtin.shell: wg genkey | sudo tee /etc/wireguard/privatekey | wg pubkey | sudo tee /etc/wireguard/publickey
+
+    - name: Wireguard config file key-collect
+      ansible.builtin.shell: cat /etc/wireguard/privatekey
+      register: private_key
+      no_log: true
+
+    - name: Wireguard config file create
+      ansible.builtin.lineinfile:
+        path: /etc/wireguard/client.conf
+        state: present
+        regexp: '^#?PrivateKey = <clients private key here>'
+        line: 'PrivateKey = {{ private_key.stdout }}'
+      no_log: true  
+
+    - name: Set ownership/permissions of wireguard keys for security
+      ansible.builtin.file:
+        path: /etc/wireguard/privatekey
+        owner: root
+        group: sudo
+        state: file
+        mode: 0600
+
+    - name: Set ownership/permissions of wireguard keys for security
+      ansible.builtin.file:
+        path: /etc/wireguard/publickey
+        owner: root
+        group: sudo
+        state: file
+        mode: 0644
+
+    - name: Set ownership/permissions of wireguard config file for security
+      ansible.builtin.file:
+        path: /etc/wireguard/client.conf
+        owner: root
+        group: sudo
+        state: file
+        mode: 0660

@@ -1,0 +1,57 @@
+---
+- name: security playbook
+  hosts: "{{ hostname }}"
+  become: true
+  vars_files:
+    - vars/default.yml  
+  tasks:
+
+  # System security measures
+
+    - name: Disable root login shell
+      ansible.builtin.lineinfile:
+        path: /etc/passwd
+        state: present
+        regexp: '^#?root:x:0:0:root:/root:'
+        line: 'root:x:0:0:root:/root:/sbin/nologin'
+
+    - name: Disable ssh root login
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        state: present
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+
+    - name: Disable ssh password authentication
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        state: present
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+
+    - name: Disable ssh login banner
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/sshd
+        state: present
+        regexp: '^#?session    optional     pam_motd.so  motd=/run/motd.dynamic'
+        line: '#session    optional     pam_motd.so  motd=/run/motd.dynamic'
+
+    - name: Diable ssh login banner update task
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/sshd
+        state: present
+        regexp: '^#?session    optional     pam_motd.so noupdate'
+        line: '#session    optional     pam_motd.so noupdate'
+
+    - name: Change banner permissions to prevent change
+      ansible.builtin.file:
+        path: /etc/update-motd.d/
+        state: directory
+        owner: root
+        group: root
+        mode: '0600'
+
+  # Restart the sshd service to enable changes
+
+    - name: Restart the sshd service
+      ansible.builtin.command: systemctl restart sshd

@@ -1,0 +1,28 @@
+---
+- name: new user playbook
+  hosts: "{{ hostname }}"
+  become: true
+  vars_files:
+    - vars/default.yml  
+  tasks:
+
+  # New user(s) and ssh key setup
+
+    - name: Create new user(s) with the specified name(s) and grant sudo privileges if specified
+      ansible.builtin.user:
+        name: "{{ create_user }}"
+        password: "{{ password }}"
+        state: present
+        groups: sudo
+        append: yes
+        create_home: true
+        shell: /bin/bash
+
+    - name: Input ssh authorized key(s) for the new user(s)
+      ansible.posix.authorized_key:
+        user: "{{ create_user }}"
+        state: present
+        key: '{{ item }}'
+      with_items:
+        - "{{ copy_local_key }}"
+      no_log: true
