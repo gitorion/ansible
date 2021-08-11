@@ -1,5 +1,5 @@
 ---
-create_user: orion
+create_user: <user>
 copy_local_key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/strongest.pub') }}"
 sys_packages: ['software-properties-common', 'acl', 'curl', 'wget', 'vim', 'ufw', 'zsh', 'git', 'teleport', 'wireguard']
 sys_dnf_packages: ['acl', 'curl', 'wget', 'vim', 'ufw', 'zsh', 'git', 'teleport', 'kmod-wireguard', 'wireguard-tools']

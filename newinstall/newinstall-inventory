@@ -1,1 +1,1 @@
-newinstall ansible_host=xxx ansible_user=xxx
+newinstall ansible_host=<ip address> ansible_user=<user>
