@@ -34,13 +34,13 @@
 
   # Local machine configure
 
-    - name: Add entry to local machine hosts file
-      ansible.builtin.lineinfile:
-        path: /etc/hosts
-        state: present
-        search_string: '{{ hostname }}'
-        line: '{{ ip }}   {{ hostname }}'
-      delegate_to: localhost
+  #  - name: Add entry to local machine hosts file
+  #    ansible.builtin.lineinfile:
+  #      path: /etc/hosts
+  #      state: present
+  #      search_string: '{{ hostname }}'
+  #      line: '{{ ip }}   {{ hostname }}'
+  #    delegate_to: localhost
 
   # Update system packages
 
@@ -75,17 +75,17 @@
         state: latest
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Linux Mint' or ansible_distribution == 'Ubuntu'
 
-    - name: Download teleport public key
+    - name: Download Docker public key
       ansible.builtin.apt_key:
-        url: https://deb.releases.teleport.dev/teleport-pubkey.asc
+        url: https://download.docker.com/linux/ubuntu/gpg
         state: present
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
 
-    - name: Add specified repositories in apt      
+    - name: Add docker repositories in apt      
       ansible.builtin.apt_repository:
-        repo: deb https://deb.releases.teleport.dev/ stable main
+        repo: deb https://download.docker.com/linux/ubuntu jammy stable
         state: present
-        install_python_apt: yes
+        validate_certs: true
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
 
     - name: Add specified repositories in apt      
@@ -94,13 +94,9 @@
         state: present
       when: ansible_distribution == 'Debian'
 
-    - name: Add teleport repo to dnf
-      ansible.builtin.command: dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'           
-
     - name: Installing required system packages apt
       ansible.builtin.apt:
-        name: "{{ sys_packages }}"
+        name: "{{ sys_packages_1 }}"
         state: latest
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
 
@@ -117,6 +113,35 @@
         state: latest
         skip_broken: yes
       when: ansible_distribution == 'Fedora'
+
+   # Install Docker and additional packages
+
+    - name: Update system packages
+      ansible.builtin.apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 3600
+        state: latest
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
+
+    - name: Installing required additional system packages apt
+      ansible.builtin.apt:
+        name: "{{ sys_packages_2 }}"
+        state: latest
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
+
+    - name: Check Docker is active
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
+    
+    - name: Ensure group "docker" exists
+      ansible.builtin.group:
+        name: docker
+        state: present
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
 
   # UFW Setup
   
@@ -136,6 +161,69 @@
       community.general.ufw:
         state: enabled
         logging: on
+  
+  ## UFW ports for MINTAKA (mailinabox)
+
+    # - name: Allowing selected ufw tcp incoming
+    #   community.general.ufw:
+    #     rule: allow
+    #     proto: tcp
+    #     direction: in
+    #     port: '{{ item }}'
+    #   loop:
+    #     - http
+    #     - https
+    #     - git
+    #     - 53
+    #     - 9100
+    #     - 25
+    #     - 465
+    #     - 587
+    #     - 993
+    #     - 995
+    #     - 4190
+    #   no_log: true
+
+    # - name: Allowing selected ufw udp incoming
+    #   community.general.ufw:
+    #     rule: allow
+    #     proto: udp
+    #     direction: in
+    #     port: '{{ item }}'
+    #   loop:
+    #     - 53
+    #   no_log: true
+
+    # - name: Allowing selected ufw tcp outgoing
+    #   community.general.ufw:
+    #     rule: allow
+    #     proto: tcp
+    #     direction: out
+    #     port: '{{ item }}'
+    #   loop:
+    #     - http
+    #     - https
+    #     - 22
+    #     - 53
+    #     - 9100
+    #     - 25
+    #     - 465
+    #     - 993
+    #     - 995
+    #     - 4190
+    #   no_log: true
+      
+    # - name: Allowing selected ufw udp outgoing
+    #   community.general.ufw:
+    #     rule: allow
+    #     proto: udp
+    #     direction: out
+    #     port: '{{ item }}'
+    #   loop:
+    #     - 53
+    #   no_log: true
+
+## UFW ports for PLUTO (web server)
 
     - name: Allowing selected ufw tcp incoming
       community.general.ufw:
@@ -146,19 +234,20 @@
       loop:
         - http
         - https
-        - svn
         - git
+        - 53
+        - 9100
       no_log: true
 
-  #  - name: Allowing selected ufw udp incoming
-  #    community.general.ufw:
-  #      rule: allow
-  #      proto: udp
-  #      direction: in
-  #      port: '{{ item }}'
-  #    loop:
-  #      -
-  #    no_log: true
+    - name: Allowing selected ufw udp incoming
+      community.general.ufw:
+        rule: allow
+        proto: udp
+        direction: in
+        port: '{{ item }}'
+      loop:
+        - 53
+      no_log: true
 
     - name: Allowing selected ufw tcp outgoing
       community.general.ufw:
@@ -171,6 +260,7 @@
         - https
         - 22
         - 53
+        - 9100
       no_log: true
       
     - name: Allowing selected ufw udp outgoing
@@ -182,6 +272,62 @@
       loop:
         - 53
       no_log: true
+
+
+  ## UFW ports for VEGA (wireguard)
+
+    # - name: Allowing selected ufw tcp incoming
+    #   community.general.ufw:
+    #     rule: allow
+    #     proto: tcp
+    #     direction: in
+    #     port: '{{ item }}'
+    #   loop:
+    #     - http
+    #     - https
+    #     - git
+    #     - 53
+    #     - 9100
+    #   no_log: true
+
+    # - name: Allowing selected ufw udp incoming
+    #   community.general.ufw:
+    #     rule: allow
+    #     proto: udp
+    #     direction: in
+    #     port: '{{ item }}'
+    #   loop:
+    #     - 80
+    #     - 443
+    #     - 53
+    #     - 54545
+    #   no_log: true
+
+    # - name: Allowing selected ufw tcp outgoing
+    #   community.general.ufw:
+    #     rule: allow
+    #     proto: tcp
+    #     direction: out
+    #     port: '{{ item }}'
+    #   loop:
+    #     - http
+    #     - https
+    #     - 22
+    #     - 53
+    #     - 9100
+    #   no_log: true
+      
+    # - name: Allowing selected ufw udp outgoing
+    #   community.general.ufw:
+    #     rule: allow
+    #     proto: udp
+    #     direction: out
+    #     port: '{{ item }}'
+    #   loop:
+    #     - 53
+    #   no_log: true
+
+  ### End of ports section for ufw
            
     - name: Set ufw incoming policy
       community.general.ufw:
@@ -253,7 +399,7 @@
       ansible.builtin.lineinfile:
         path: /etc/skel/.profile
         state: present
-        line: 'source /opt/scripts/my_start/mystart.sh'
+        line: 'python3 /opt/scripts/my_start/mystart.py'
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu' or ansible_distribution == 'Linux Mint'
 
     - name: Check zlogin file exists
@@ -271,13 +417,13 @@
       ansible.builtin.lineinfile:
         path: /etc/skel/.zlogin
         state: present
-        line: 'source /opt/scripts/my_start/mystart.sh'
+        line: 'python3 /opt/scripts/my_start/mystart.py'
 
     - name: Add mystart script entry to skel bashrc for new users
       ansible.builtin.lineinfile:
         path: /etc/skel/.bashrc
         state: present
-        line: 'source /opt/scripts/my_start/mystart.sh'
+        line: 'python3 /opt/scripts/my_start/mystart.py'
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'Fedora' or ansible_distribution == 'RedHat' or ansible_distribution == 'AlmaLinux'
 
   # New user(s) and ssh key setup
@@ -287,7 +433,7 @@
         name: "{{ create_user }}"
         password: "{{ password }}"
         state: present
-        groups: sudo
+        groups: sudo,docker
         append: yes
         create_home: true
         shell: /bin/bash
@@ -303,73 +449,100 @@
 
   # Wireguard vpn set up
 
-    - name: Create/check directory for Wireguard
-      ansible.builtin.file:
-        path: /etc/wireguard
-        owner: root
-        group: sudo
-        state: directory
-        mode: 0770
+    # - name: Create/check directory for Wireguard
+    #   ansible.builtin.file:
+    #     path: /etc/wireguard
+    #     owner: root
+    #     group: sudo
+    #     state: directory
+    #     mode: 0770
            
-    - name: Clone wireguard repo from git
+    # - name: Clone wireguard repo from git
+    #   ansible.builtin.git:
+    #     repo: https://github.com/gitorion/wireguard.git
+    #     dest: /etc/wireguard/
+    #     clone: yes
+    #     version: main
+
+    # - name: Wireguard key-generate
+    #   ansible.builtin.shell: wg genkey | sudo tee /etc/wireguard/privatekey | wg pubkey | sudo tee /etc/wireguard/publickey
+
+    # - name: Wireguard config file key-collect
+    #   ansible.builtin.shell: cat /etc/wireguard/privatekey
+    #   register: private_key
+    #   no_log: true
+
+    # - name: Wireguard config file key-collect
+    #   ansible.builtin.shell: cat /etc/wireguard/publickey
+    #   register: public_key
+    #   no_log: true
+
+    # - name: Wireguard client config file create
+    #   ansible.builtin.lineinfile:
+    #     path: /etc/wireguard/client.conf
+    #     state: present
+    #     regexp: '^#?PrivateKey = <clients private key here>'
+    #     line: 'PrivateKey = {{ private_key.stdout }}'
+    #   no_log: true
+
+    # - name: Wireguard server config file create
+    #   ansible.builtin.lineinfile:
+    #     path: /etc/wireguard/vpn.conf
+    #     state: present
+    #     regexp: '^#?PrivateKey = <server private key here>'
+    #     line: 'PrivateKey = {{ private_key.stdout }}'
+    #   no_log: true
+
+    # - name: Wireguard server config file create
+    #   ansible.builtin.lineinfile:
+    #     path: /etc/wireguard/client.conf
+    #     state: present
+    #     regexp: '^#?PublicKey = <servers public key here>'
+    #     line: 'PublicKey = {{ public_key.stdout }}'
+    #   no_log: true
+
+    # - name: Set ownership/permissions of wireguard keys for security
+    #   ansible.builtin.file:
+    #     path: /etc/wireguard/privatekey
+    #     owner: root
+    #     group: sudo
+    #     state: file
+    #     mode: 0600
+
+    # - name: Set ownership/permissions of wireguard keys for security
+    #   ansible.builtin.file:
+    #     path: /etc/wireguard/publickey
+    #     owner: root
+    #     group: sudo
+    #     state: file
+    #     mode: 0644
+
+    # - name: Set ownership/permissions of wireguard config file for security
+    #   ansible.builtin.file:
+    #     path: /etc/wireguard/client.conf
+    #     owner: root
+    #     group: sudo
+    #     state: file
+    #     mode: 0660
+
+  # Mystart set-up
+
+    - name: Clone scripts from git
       ansible.builtin.git:
-        repo: https://github.com/gitorion/wireguard.git
-        dest: /etc/wireguard/
+        repo: https://github.com/gitorion/scripts.git
+        dest: /opt/scripts
         clone: yes
         version: main
 
-    - name: Wireguard key-generate
-      ansible.builtin.shell: wg genkey | sudo tee /etc/wireguard/privatekey | wg pubkey | sudo tee /etc/wireguard/publickey
-
-    - name: Wireguard config file key-collect
-      ansible.builtin.shell: cat /etc/wireguard/privatekey
-      register: private_key
-      no_log: true
-
-    - name: Wireguard config file create
-      ansible.builtin.lineinfile:
-        path: /etc/wireguard/client.conf
-        state: present
-        regexp: '^#?PrivateKey = <clients private key here>'
-        line: 'PrivateKey = {{ private_key.stdout }}'
-      no_log: true  
-
-    - name: Set ownership/permissions of wireguard keys for security
-      ansible.builtin.file:
-        path: /etc/wireguard/privatekey
-        owner: root
-        group: sudo
-        state: file
-        mode: 0600
-
-    - name: Set ownership/permissions of wireguard keys for security
-      ansible.builtin.file:
-        path: /etc/wireguard/publickey
-        owner: root
-        group: sudo
-        state: file
-        mode: 0644
-
-    - name: Set ownership/permissions of wireguard config file for security
-      ansible.builtin.file:
-        path: /etc/wireguard/client.conf
-        owner: root
-        group: sudo
-        state: file
-        mode: 0660
-
-  # Start script set-up
-
-    - name: Clone my_start script from git
-      ansible.builtin.git:
-        repo: https://github.com/gitorion/my_start.git
-        dest: /opt/scripts/my_start/
-        clone: yes
-        version: main
+    - name: Copy mystart-scraper Service file to systemd
+      ansible.builtin.copy:
+        src: /opt/scripts/my_start/mystart-scraper.service
+        dest: /etc/systemd/system/mystart-scraper.service
+        remote_src: true
 
     - name: Set ownership of cloned my_start script files
       ansible.builtin.file:
-        path: /opt/scripts/my_start/
+        path: /opt/scripts
         owner: root
         group: sudo
         state: directory
@@ -380,6 +553,14 @@
 
     - name: Rebooting the system to complete updates
       reboot:
+
+  # Enable mystart-scraper Service
+
+    - name: Enable mystart-scraper Service
+      ansible.builtin.service:
+        name: mystart-scraper
+        state: started
+        enabled: true
 
   # System security measures
 

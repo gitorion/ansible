@@ -1,1 +1,1 @@
-newinstall ansible_host=<ip address> ansible_user=<user>
+newinstall ansible_host=104.254.245.64 ansible_user=ubuntu

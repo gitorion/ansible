@@ -1,11 +1,12 @@
 ---
-create_user: <user>
-copy_local_key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/strongest.pub') }}"
-sys_packages: ['software-properties-common', 'acl', 'curl', 'wget', 'vim', 'ufw', 'zsh', 'git', 'teleport', 'wireguard']
-sys_dnf_packages: ['acl', 'curl', 'wget', 'vim', 'ufw', 'zsh', 'git', 'teleport', 'kmod-wireguard', 'wireguard-tools']
-sys_fedora_dnf_packages: ['acl', 'curl', 'wget', 'vim', 'ufw', 'zsh', 'git', 'teleport', 'wireguard-tools']
-hostname: <hostname>
-password: "{{ lookup('env', 'ORION_PASS') }}"
-ip: <ip address>
+create_user: orion
+copy_local_key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/id_ed25519.pub') }}"
+sys_packages_1: ['software-properties-common', 'acl', 'curl', 'wget', 'vim', 'ufw', 'zsh', 'git', 'wireguard', 'python3-prettytable', 'lsb-release', 'ca-certificates', 'apt-transport-https', 'gnupg-agent', 'python3-pip', 'virtualenv', 'python3-setuptools']
+sys_packages_2: ['docker-ce', 'docker-ce-cli', 'containerd.io']
+sys_dnf_packages: ['acl', 'curl', 'wget', 'vim', 'ufw', 'zsh', 'git', 'kmod-wireguard', 'wireguard-tools']
+sys_fedora_dnf_packages: ['acl', 'curl', 'wget', 'vim', 'ufw', 'zsh', 'git', 'wireguard-tools']
+hostname: pluto
+password: "{{ lookup('env','ORION_PASS') }}"
+ip: 104.254.245.64
 #ansible_ssh_private_key_file: ~/.ssh/lightsail              #if using a lightsail instance
-ansible_ssh_private_key_file: ~/.ssh/id_rsa                  #if using rsa key
+#ansible_ssh_private_key_file: ~/.ssh/id_ed25519                 #if using rsa key
